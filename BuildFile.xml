@@ -1,0 +1,18 @@
+<use name="clhep"/>
+<use name="rootmath"/>
+<use name="boost"/>
+<use name="DataFormats/ForwardDetId"/>
+<use name="DataFormats/GeometrySurface"/>
+<use name="DataFormats/HGCRecHit"/>
+<use name="DataFormats/TrackingRecHit"/>
+<use name="DataFormats/TrajectorySeed"/>
+<use name="DataFormats/TrackReco"/>
+<use name="Geometry/CaloGeometry"/>
+<use name="Geometry/HGCalGeometry"/>
+<use name="Geometry/CommonDetUnit"/>
+<use name="TrackingTools/PatternTools"/>
+<use name="TrackingTools/TrajectoryState"/>
+<use name="TrackingTools/TrajectoryCleaning"/>
+<export>
+  <lib   name="1"/>
+</export>
