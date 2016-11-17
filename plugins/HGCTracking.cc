@@ -71,8 +71,8 @@ class HGCTracking : public edm::stream::EDProducer<> {
         std::string propName_, propNameOppo_;
         std::string estimatorName_;
         std::string updatorName_;
-        std::string singleCleanerName_, multipleCleanerName_;
-        bool intermediateCleaner_, fastCleaner_, endpointCleaner_;
+        std::string singleCleanerName_, trajectoryCleanerName_;
+        bool fastCleaner_, endpointCleaner_;
         unsigned int theMaxCand;
         double theFoundHitBonus, theLostHitPenalty;
         unsigned int theMaxStartingEmptyLayers, theLayersBeforeCleaning;
@@ -90,7 +90,7 @@ class HGCTracking : public edm::stream::EDProducer<> {
         edm::ESHandle<MagneticField> bfield_;
         edm::ESHandle<Chi2MeasurementEstimatorBase> estimator_;
         edm::ESHandle<TrajectoryStateUpdator> updator_;
-        edm::ESHandle<TrajectoryCleaner> singleCleaner_, multipleCleaner_;
+        edm::ESHandle<TrajectoryCleaner> trajectoryCleaner_;
         std::unique_ptr<TrajectoryFilter> trajFilter_;
 
         template<class Start>
@@ -221,9 +221,7 @@ HGCTracking::HGCTracking(const edm::ParameterSet& ps) :
     propNameOppo_(ps.getParameter<std::string>("propagatorOpposite")),
     estimatorName_(ps.getParameter<std::string>("estimator")),
     updatorName_(ps.getParameter<std::string>("updator")),
-    singleCleanerName_(ps.getParameter<std::string>("singleCleaner")),
-    multipleCleanerName_(ps.getParameter<std::string>("multipleCleaner")),
-    intermediateCleaner_(ps.getParameter<bool>("intermediateCleaner")), 
+    trajectoryCleanerName_(ps.getParameter<std::string>("trajectoryCleaner")),
     fastCleaner_(ps.getParameter<bool>("fastCleaner")), 
     endpointCleaner_(ps.getParameter<bool>("endpointCleaner")), 
     theMaxCand(ps.getParameter<uint32_t>("maxCand")),
@@ -278,8 +276,7 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
     es.get<TrackingComponentsRecord>().get(estimatorName_,estimator_);
     es.get<TrackingComponentsRecord>().get(updatorName_,updator_);
 
-    if (!singleCleanerName_.empty()) es.get<TrajectoryCleaner::Record>().get(singleCleanerName_, singleCleaner_);
-    if (!multipleCleanerName_.empty()) es.get<TrajectoryCleaner::Record>().get(multipleCleanerName_, multipleCleaner_);
+    if (!trajectoryCleanerName_.empty()) es.get<TrajectoryCleaner::Record>().get(trajectoryCleanerName_, trajectoryCleaner_);
     TrajectoryCleanerBySharedEndpoints endpointCleaner(theFoundHitBonus, theLostHitPenalty);
 
     HGCTrackingBasicCPE cpe(&*caloGeom_); // FIXME better
@@ -379,11 +376,6 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
                 }
             }
             //printf("   A total of %lu trajectories after this step\n", newCands.size());
-            if (intermediateCleaner_ && depth > theLayersBeforeCleaning) {
-                //unsigned int oldsize = newCands.size();
-                IntermediateTrajectoryCleaner::clean(newCands); trim(newCands);
-                //if (oldsize != newCands.size()) printf("    Reduced to %lu trajectories after IntermediateTrajectoryCleaner\n", newCands.size());
-            }
             if (endpointCleaner_ && depth > theLayersBeforeCleaning) {
                 unsigned int oldsize = newCands.size();
                 endpointCleaner.clean(newCands); trim(newCands);
@@ -406,7 +398,7 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
         }
         if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories found from this track\n", myfinaltrajectories.size());
         if (fastCleaner_) {
-            FastTrajectoryCleaner cleaner(theFoundHitBonus,theLostHitPenalty);
+            FastTrajectoryCleaner cleaner(theFoundHitBonus/2,theLostHitPenalty); // the factor 1/2 is because the FastTrajectoryCleaner uses the ndof instead of the number of found hits
             cleaner.clean(myfinaltrajectories); trim(myfinaltrajectories);
             if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories after FastTrajectoryCleaner\n", myfinaltrajectories.size());
         }
@@ -420,8 +412,8 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
                 if (hgctracking::g_debuglevel > 1) { printf("- TempTrajectory "); printTraj(t); }
                 toPromote.push_back(t.toTrajectory());
             }
-            if (toPromote.size() > 1 && !multipleCleanerName_.empty()) {
-                multipleCleaner_->clean(toPromote); trim(toPromote);
+            if (toPromote.size() > 1 && !trajectoryCleanerName_.empty()) {
+                trajectoryCleaner_->clean(toPromote); trim(toPromote);
                 if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories after multiple cleaner\n", toPromote.size());
             }
             for (Trajectory &t : toPromote) { 
@@ -433,8 +425,8 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
         }
     }
     if (hgctracking::g_debuglevel > 0) printf("\n\nA total of %lu trajectories found in the event\n",finaltrajectories.size());
-    if (!multipleCleanerName_.empty()) {
-        multipleCleaner_->clean(finaltrajectories); trim(finaltrajectories);
+    if (!trajectoryCleanerName_.empty()) {
+        trajectoryCleaner_->clean(finaltrajectories); trim(finaltrajectories);
         if (hgctracking::g_debuglevel > 0) printf("A total of %lu trajectories after multiple cleaner\n", finaltrajectories.size());
     }
     if (hgctracking::g_debuglevel > 0)  {
