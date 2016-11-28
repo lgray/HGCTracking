@@ -1,0 +1,11 @@
+<lcgdict>
+   <class name="HGCTrackingRecHitFromHit" ClassVersion="10">
+        <version ClassVersion="10" checksum="1261573893"/>
+   </class>
+   <class name="HGCTrackingRecHitFromCluster" ClassVersion="10">
+        <version ClassVersion="10" checksum="3177399719"/>
+   </class>
+   <class name="HGCTrackingClusteringRecHit" ClassVersion="10">
+        <version ClassVersion="10" checksum="1530209985"/>
+   </class>
+</lcgdict>

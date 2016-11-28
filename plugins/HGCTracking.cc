@@ -185,6 +185,7 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
 
 void HGCTracking::declareOutput(const std::string &label) 
 {
+    produces<TrackingRecHitCollection>(label);
     produces<std::vector<reco::TrackExtra>>(label);
     produces<std::vector<reco::Track>>(label);
     produces<std::vector<reco::Track>>(label+"Seed");
@@ -193,11 +194,13 @@ void HGCTracking::declareOutput(const std::string &label)
 
 void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &out, const std::string &label) 
 {
+    std::unique_ptr<TrackingRecHitCollection> outHits(new TrackingRecHitCollection());
     std::unique_ptr<std::vector<reco::TrackExtra>> outTkEx(new std::vector<reco::TrackExtra>());
     std::unique_ptr<std::vector<reco::Track>> outTk(new std::vector<reco::Track>());
     std::unique_ptr<std::vector<reco::CaloCluster>> outCl(new std::vector<reco::CaloCluster>());
     std::unique_ptr<std::vector<reco::Track>> outTkSeed(new std::vector<reco::Track>());
     auto rTrackExtras = out.getRefBeforePut<reco::TrackExtraCollection>(label);
+    auto rHits = out.getRefBeforePut<TrackingRecHitCollection>(label);
 
     for (const Trajectory &t : trajs) {
         reco::CaloCluster hits;
@@ -205,7 +208,9 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
         float energy = 0;
         GlobalPoint pos; GlobalVector mom; int q = 1;
         GlobalPoint outpos; GlobalVector outmom; 
+        unsigned int ifirst = outHits->size(), nhits = 0;
         for (const auto & tm : t.measurements()) {
+            outHits->push_back(tm.recHit()->clone()); nhits++;
             if (!tm.recHit()->isValid()) continue;
             if (first) {
                 pos = tm.updatedState().globalPosition();
@@ -238,6 +243,7 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
         reco::TrackExtra extra(reco::Track::Point(outpos.x(), outpos.y(), outpos.z()), reco::Track::Vector(outmom.x(), outmom.y(), outmom.z()), true,  
                                reco::Track::Point(pos.x(), pos.y(), pos.z()), reco::Track::Vector(mom.x(), mom.y(), mom.z()), true,
                                reco::Track::CovarianceMatrix(), 0,  reco::Track::CovarianceMatrix(), 0, t.direction());
+        extra.setHits(rHits, ifirst, nhits);
         outTkEx->push_back(extra);
 
         reco::Track trk(t.chiSquared(), t.foundHits()*2, hits.position(),
@@ -273,6 +279,7 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
     for (unsigned int i = 0, n = outTk->size(); i < n; ++i) {
         (*outTk)[i].setExtra(reco::TrackExtraRef(rTrackExtras, i));
     }
+    out.put(std::move(outHits), label);
     out.put(std::move(outTkEx), label);
     out.put(std::move(outTk), label);
     out.put(std::move(outCl), label);

@@ -12,12 +12,13 @@ class HGCTrackingRecHit : public RecHit2DLocalPos {
         typedef ObjRef ref_type;
         typedef typename ObjRef::value_type obj_type;
 
+        HGCTrackingRecHit() {}
         HGCTrackingRecHit(DetId id, const ObjRef &objref, const LocalPoint &pos, const LocalError &err):
             RecHit2DLocalPos(id),
             objref_(objref),
             pos_(pos), err_(err) {}
 
-        virtual HGCTrackingRecHit<ObjRef> * clone() const { return new HGCTrackingRecHit<ObjRef>(*this); }
+        virtual HGCTrackingRecHit<ObjRef> * clone() const override { return new HGCTrackingRecHit<ObjRef>(*this); }
 
         virtual LocalPoint localPosition() const override { return pos_; }
         virtual LocalError localPositionError() const override { return err_; }

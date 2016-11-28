@@ -12,12 +12,13 @@ class HGCTrackingClusteringRecHit : public RecHit2DLocalPos {
         typedef HGCRecHitRef ObjRef;
         typedef edm::RefVector<ObjRef::product_type, ObjRef::value_type, ObjRef::finder_type> ObjRefVector;
 
+        HGCTrackingClusteringRecHit() {}
         HGCTrackingClusteringRecHit(DetId id, const ObjRefVector &objrefs, float etot, const LocalPoint &pos, const LocalError &err):
             RecHit2DLocalPos(id),
             objrefs_(objrefs), etot_(etot),
             pos_(pos), err_(err) {}
 
-        virtual HGCTrackingClusteringRecHit * clone() const { return new HGCTrackingClusteringRecHit(*this); }
+        virtual HGCTrackingClusteringRecHit * clone() const override { return new HGCTrackingClusteringRecHit(*this); }
 
         virtual LocalPoint localPosition() const override { return pos_; }
         virtual LocalError localPositionError() const override { return err_; }
