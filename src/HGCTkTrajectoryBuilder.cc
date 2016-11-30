@@ -139,11 +139,11 @@ HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector
     };
 
     int zside = fts.momentum().eta() > 0 ? +1 : -1;
-    const HGCDiskGeomDet *disk = hgcTracker_->firstDisk(zside);
+    const HGCDiskGeomDet *disk = hgcTracker_->firstDisk(zside,direction);
     std::vector<TempTrajectory> myfinaltrajectories;
     std::vector<TempTrajectory> trajectories = advanceOneLayer(fts, TempTrajectory(direction, 0), disk, false);
     unsigned int depth = 2;
-    for (disk = hgcTracker_->nextDisk(disk); disk != nullptr; disk = hgcTracker_->nextDisk(disk), ++depth) {
+    for (disk = hgcTracker_->nextDisk(disk,direction); disk != nullptr; disk = hgcTracker_->nextDisk(disk,direction), ++depth) {
         if (trajectories.empty()) continue;
         if (hgctracking::g_debuglevel > 1) {
             printf("   New destination: disk subdet %d, zside %+1d, layer %2d, z = %+8.2f\n", disk->subdet(), disk->zside(), disk->layer(), disk->toGlobal(LocalPoint(0,0,0)).z());
@@ -234,8 +234,9 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
 {
     std::vector<TempTrajectory> ret;
 
+    const Propagator &prop = (traj.direction() == alongMomentum ? *prop_ : *propOppo_);
     // propagate to the plane of the layer
-    TrajectoryStateOnSurface tsos = prop_->propagate(start, disk->surface());
+    TrajectoryStateOnSurface tsos = prop.propagate(start, disk->surface());
     if (!tsos.isValid()) { 
         if (hgctracking::g_debuglevel > 0)  {
             printf("        Destination disk subdet %d, zside %+1d, layer %2d, z = %+8.2f\n", disk->subdet(), disk->zside(), disk->layer(), disk->toGlobal(LocalPoint(0,0,0)).z());
@@ -340,6 +341,8 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
     TrajectoryStateOnSurface tsos = tms.back().updatedState();
     tsos.rescaleError(scaleErrors);
 
+    const Propagator &propOppo = (traj.direction() == alongMomentum ? *propOppo_ : *prop_);
+
     for (int i = tms.size()-1; i >= 0; --i) {
         const HGCDiskGeomDet * det = hgcTracker_->idToDet(tms[i].recHit()->geographicalId());
         if (det == 0) {
@@ -349,7 +352,7 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
             ret.invalidate();
             return ret;
         }
-        TrajectoryStateOnSurface prop = propOppo_->propagate(tsos, det->surface());
+        TrajectoryStateOnSurface prop = propOppo.propagate(tsos, det->surface());
         if (!prop.isValid()) {
             if (hgctracking::g_debuglevel > 0)  {
                 printf(" ---> failure in propagation for step %d\n",i);

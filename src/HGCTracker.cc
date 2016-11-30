@@ -72,13 +72,18 @@ void HGCTracker::makeDisks(int subdet, int disks)
 }
 
 
-const HGCDiskGeomDet * HGCTracker::nextDisk(const HGCDiskGeomDet *from) const 
+const HGCDiskGeomDet * HGCTracker::nextDisk(const HGCDiskGeomDet *from, PropagationDirection direction) const 
 {
     const std::vector<HGCDiskGeomDet *> & vec = (from->zside() > 0 ? disksPos_ : disksNeg_);
     auto it = std::find(vec.begin(), vec.end(), from);
     if (it == vec.end()) throw cms::Exception("LogicError", "nextDisk called with invalid starting disk");
-    if (*it == vec.back()) return nullptr;
-    return *(++it);
+    if (direction == alongMomentum) {
+        if (*it == vec.back()) return nullptr;
+        return *(++it);
+    } else {
+        if (it == vec.begin()) return nullptr;
+        return *(--it);
+    }
 }
 
 const HGCDiskGeomDet * HGCTracker::idToDet(DetId id) const 

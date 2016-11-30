@@ -8,6 +8,7 @@
 
 #include "RecoParticleFlow/HGCTracking/interface/HGCDiskGeomDet.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
+#include "DataFormats/TrajectorySeed/interface/PropagationDirection.h"
 
 class HGCTracker {
     public:
@@ -25,9 +26,11 @@ class HGCTracker {
         const HGCDiskGeomDet * disk(int zside, int disk) const { return (zside > 0 ? disksPos_ : disksNeg_).at(disk); }
         const HGCDiskGeomDet * firstDisk(int zside) const { return (zside > 0 ? disksPos_ : disksNeg_).front(); }
         const HGCDiskGeomDet * lastDisk(int zside) const { return (zside > 0 ? disksPos_ : disksNeg_).back(); }
+        const HGCDiskGeomDet * firstDisk(int zside, PropagationDirection direction) const { return direction == alongMomentum ? firstDisk(zside) : lastDisk(zside); }
+        const HGCDiskGeomDet * lastDisk(int zside, PropagationDirection direction) const { return direction == alongMomentum ? lastDisk(zside) : firstDisk(zside); }
 
         // FIXME: interface to be extended for outside-in 
-        const HGCDiskGeomDet * nextDisk(const HGCDiskGeomDet *from) const ;
+        const HGCDiskGeomDet * nextDisk(const HGCDiskGeomDet *from, PropagationDirection direction=alongMomentum) const ;
 
         const HGCDiskGeomDet * idToDet(DetId id) const ;
 
