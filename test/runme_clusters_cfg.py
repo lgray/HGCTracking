@@ -27,14 +27,13 @@ from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic', '')
 # customisation of the process.
 
-process.load('RecoLocalCalo.HGCalRecHitDump.imagingClusterHGCal_cfi')
+process.load('RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cfi')
 process.load('RecoParticleFlow.HGCTracking.hgcTracks_cff')
 
-process.imagingClusterHGCal.detector = "all"
 process.hgcTracks.debugLevel = 3
 process.hgcTracks.patternRecoAlgo = "hitsAndClusters"
 
-process.run = cms.Path(process.imagingClusterHGCal + process.hgcTracks)
+process.run = cms.Path(process.hgcalLayerClusters + process.hgcTracks)
 
 process.out = cms.OutputModule("PoolOutputModule",
     fileName = cms.untracked.string("hgctracks_clusters.root"),
@@ -42,7 +41,7 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep recoTracks_generalTracks_*_*",
         "keep *_HGCalRecHit_*_*", 
         "keep *_particleFlowClusterHGCal_*_*", 
-        "keep *_imagingClusterHGCal_*_*",
+        "keep *_hgcalLayerClusters_*_*",
         "keep *_hgcTracks_*_*",
     ),
 )

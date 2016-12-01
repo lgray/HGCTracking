@@ -6,7 +6,7 @@ hgcTrajectoryBuilderPSet = cms.PSet(
     srcFH = cms.InputTag("HGCalRecHit:HGCHEFRecHits"),
     srcBH = cms.InputTag("HGCalRecHit:HGCHEBRecHits"),
     ### Clusters
-    srcClusters = cms.InputTag("imagingClusterHGCal"),
+    srcClusters = cms.InputTag("hgcalLayerClusters"),
 
     ### Seeding
     # initial uncertainties are rescaled by ( 1 + x * N(lost outer hits) )
