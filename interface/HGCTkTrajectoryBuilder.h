@@ -82,6 +82,7 @@ class HGCTkTrajectoryBuilder {
         const bool bestHitOnly_;
         const double deltaChiSquareForHits_, minChi2ForInvalidHit_;
         const double clusterRadius_;
+        const bool lostHitsOnBH_;
 
         // --- Event Setup stuff (or similar) ---
         uint32_t geomCacheId_;

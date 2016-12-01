@@ -48,6 +48,7 @@ HGCTkTrajectoryBuilder::HGCTkTrajectoryBuilder(const edm::ParameterSet& ps, edm:
     deltaChiSquareForHits_(ps.getParameter<double>("deltaChiSquareForHits")),
     minChi2ForInvalidHit_(ps.getParameter<double>("minChi2ForInvalidHit")),
     clusterRadius_(ps.getParameter<double>("clusterRadius")),
+    lostHitsOnBH_(ps.getParameter<bool>("lostHitsOnBH")),
     geomCacheId_(0),
     truthMap_(nullptr)
 {
@@ -317,8 +318,9 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
             return ret;
         }
     }
+    auto missing = (disk->subdet() != 5 || lostHitsOnBH_) ? TrackingRecHit::missing : TrackingRecHit::inactive;
     ret.push_back(traj.foundHits() ? traj : TempTrajectory(traj.direction(),0)); // either just one lost hit, or a trajectory not starting on a lost hit
-    ret.back().push(TrajectoryMeasurement(tsos, std::make_shared<InvalidTrackingRecHit>(*disk, TrackingRecHit::missing)));
+    ret.back().push(TrajectoryMeasurement(tsos, std::make_shared<InvalidTrackingRecHit>(*disk, missing)));
     return ret;
 }
 

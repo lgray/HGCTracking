@@ -51,6 +51,9 @@ hgcTrajectoryBuilderPSet = cms.PSet(
     foundHitBonus = cms.double(20.0),
     lostHitPenalty = cms.double(5.0),
     #
+    # choice of whether to penalize for lost hits in the BH subdetector (True) or not (False)
+    lostHitsOnBH = cms.bool(False),
+    #
     # allow the track to have at most N layers without hits
     maxStartingEmptyLayers = cms.uint32(2), 
     #
