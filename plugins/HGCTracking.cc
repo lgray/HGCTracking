@@ -223,10 +223,11 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
                 outmom = tm.updatedState().globalMomentum();
             }
             if (typeid(*tm.recHit()) == typeid(HGCTrackingRecHitFromCluster)) {
-                for (auto & p : (dynamic_cast<const HGCTrackingRecHitFromCluster&>(*tm.recHit())).objRef()->hitsAndFractions()) {
+                const reco::CaloCluster &cl = *(dynamic_cast<const HGCTrackingRecHitFromCluster&>(*tm.recHit())).objRef();
+                for (auto & p : cl.hitsAndFractions()) {
                     if (p.second > 0) hits.addHitAndFraction(p.first, p.second);
-                    energy += p.first * p.second;
                 }
+                energy += cl.energy();
             } else if (typeid(*tm.recHit()) == typeid(HGCTrackingClusteringRecHit)) {
                 for (auto & hr : (dynamic_cast<const HGCTrackingClusteringRecHit&>(*tm.recHit())).objRefs()) {
                     hits.addHitAndFraction(hr->id(), 1.0);
@@ -238,6 +239,8 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
             }
         }
         hits.setEnergy(energy);
+        hits.setCorrectedEnergy(energy);
+        hits.setPosition(math::XYZPoint(0.5*(pos.x()+outpos.x()), 0.5*(pos.y()+outpos.y()), 0.5*(pos.z()+outpos.z())));
         outCl->push_back(hits);
 
         reco::TrackExtra extra(reco::Track::Point(outpos.x(), outpos.y(), outpos.z()), reco::Track::Vector(outmom.x(), outmom.y(), outmom.z()), true,  
