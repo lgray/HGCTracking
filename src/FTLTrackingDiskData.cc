@@ -1,65 +1,47 @@
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingDiskData.h"
-#include "RecoParticleFlow/HGCTracking/interface/hgcdebug.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingDiskData.h"
+#include "RecoTracker/FastTimeMatching/interface/ftldebug.h"
 
 namespace {
-        struct HGCBySideAndLayer {
-            bool operator()(const HGCRecHit &hit1, const HGCRecHit &hit2) const { return comp(HGCalDetId(hit1.id()), HGCalDetId(hit2.id())); }
-            bool operator()(HGCalDetId id1, const HGCRecHit &hit2) const { return comp(id1, HGCalDetId(hit2.id())); }
-            bool operator()(const HGCRecHit &hit1, HGCalDetId id2) const { return comp(HGCalDetId(hit1.id()),id2); }
-            bool comp(HGCalDetId id1, HGCalDetId id2) const {
-                if (id1.subdetId() != id2.subdetId() || id1.zside() != id2.zside()) {
-                    return id1 < id2;
-                }
-                return id1.layer() < id2.layer();
+        struct FTLBySideAndEta {
+            bool operator()(const FTLRecHit &hit1, const FTLRecHit &hit2) const { return comp(FastTimeDetId(hit1.id()), FastTimeDetId(hit2.id())); }
+            bool operator()(FastTimeDetId id1, const FTLRecHit &hit2) const { return comp(id1, FastTimeDetId(hit2.id())); }
+            bool operator()(const FTLRecHit &hit1, FastTimeDetId id2) const { return comp(FastTimeDetId(hit1.id()),id2); }
+            bool comp(FastTimeDetId id1, FastTimeDetId id2) const {
+	      if (id1.type() != id2.type() || id1.zside() != id2.zside()) {
+		return id1 < id2;
+	      }
+	      return id1.ieta() < id2.ieta();
             }
         };
 }
 
-HGCTrackingDiskData::HGCTrackingDiskData(const edm::Handle<HGCTrackingDiskData::TColl> &data, int subdet, int zside, int layer, const HGCTrackingBasicCPE *cpe) :
+FTLTrackingDiskData::FTLTrackingDiskData(const edm::Handle<FTLTrackingDiskData::TColl> &data, int subdet, int zside, int layer, const FTLTrackingBasicCPE *cpe) :
     alldata_(&data), 
     cpe_(cpe),truthMap_(0)
 {
     index_.clear();
-    if (subdet <= 4) {
-        auto range = std::equal_range(data->begin(), data->end(), HGCalDetId(ForwardSubdetector(subdet),zside,layer,0,0,0), HGCBySideAndLayer());
-        for (const_iterator it = range.first; it < range.second; ++it) {
-            index_.emplace_back(cpe_->hint(*it), it);
-        }
-    } else {
-        for (const_iterator it = data->begin(), ed = data->end(); it != ed; ++it) {
-            HcalDetId hcalid(it->id());
-            if (zside == hcalid.zside() && layer == hcalid.depth()) {
-                index_.emplace_back(cpe_->hint(*it), it);
-            }
-        }
-    }
+    auto range = std::equal_range(data->begin(), data->end(), FastTimeDetId(FastTimeDetId::FastTimeEndcap,0,0,zside), FTLBySideAndEta());
+    for (const_iterator it = range.first; it < range.second; ++it) {
+      index_.emplace_back(cpe_->hint(*it), it);
+    }    
     buildIndex_();
 }
 
-void HGCTrackingDiskData::addClusters(const edm::Handle<reco::CaloClusterCollection> &data, int subdet, int zside, int layer) 
+void FTLTrackingDiskData::addClusters(const edm::Handle<reco::CaloClusterCollection> &data, int type, int zside, int layer) 
 {
     clusterData_ = & data;
     clusterIndex_.clear();
     for (reco::CaloClusterCollection::const_iterator it = data->begin(), ed = data->end(); it != ed; ++it) {
-        DetId firstid = it->hitsAndFractions().front().first;
-        if (firstid.det() == DetId::Forward) {
-            if (firstid.subdetId() != subdet) continue;
-            HGCalDetId parsed(firstid);
-            if (parsed.zside() != zside || parsed.layer() != layer) {
-                continue;
-            }
-        } else if (firstid.det() == DetId::Hcal) {
-            if (subdet != 5) continue;
-            HcalDetId parsed(firstid);
-            if (parsed.zside() != zside || parsed.depth() != layer) {
-                continue;
-            }
-        }
+        FastTimeDetId firstid = it->hitsAndFractions().front().first;
+	if (firstid.type() != type) continue;	
+	if( firstid.zside() != zside ) {
+	  continue;
+	}        
         clusterIndex_.emplace_back(cpe_->hint(*it), it);
     }
 }
 
-std::vector<TrajectoryMeasurement> HGCTrackingDiskData::measurements(TrajectoryStateOnSurface &tsos, const MeasurementEstimator &mest) const 
+std::vector<TrajectoryMeasurement> FTLTrackingDiskData::measurements(TrajectoryStateOnSurface &tsos, const MeasurementEstimator &mest) const 
 {
     std::vector<TrajectoryMeasurement> ret;
     GlobalPoint lp = tsos.globalPosition();
@@ -69,7 +51,7 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::measurements(TrajectoryS
         if (std::max(std::abs(lp.x()-pair.first.x), std::abs(lp.y()-pair.first.y)) < std::max(2.f,window + 3*pair.first.size)) {
             const value_type & obj = *pair.second;
             auto const & params = cpe_->localParameters(obj, tsos.surface());
-            auto hitptr = std::make_shared<HGCTrackingRecHitFromHit>(obj.id(), 
+            auto hitptr = std::make_shared<FTLTrackingRecHitFromHit>(obj.id(), 
                     ref_type(*alldata_, pair.second - (*alldata_)->begin()),  
                     params.first, params.second);
             auto est_pair = mest.estimate(tsos, *hitptr);
@@ -78,7 +60,7 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::measurements(TrajectoryS
             if (est_pair.first) {
                 ret.emplace_back(tsos, hitptr, est_pair.second);
             }
-            if (hgctracking::g_debuglevel > 2) {
+            if (ftltracking::g_debuglevel > 2) {
                 if (est_pair.second > 400) continue;
                 //printf("\t\tstate at x = %+7.2f +- %4.2f   y = %+7.2f +- %4.2f   hit at x = %+7.2f  y = %+7.2f    energy %7.3f   dist = %5.1f chi2 = %8.1f   pass = %1d ",
                 //    lp.x(), sqrt(loce.xx()), lp.y(), sqrt(loce.yy()), pair.first.x, pair.first.y, energy, hypot(lp.x()-pair.first.x,lp.y()-pair.first.y), est_pair.second, est_pair.first);
@@ -102,13 +84,13 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::measurements(TrajectoryS
     return ret;
 }
 
-std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterizedMeasurements(TrajectoryStateOnSurface &tsos, const MeasurementEstimator &mest, float rCut) const
+std::vector<TrajectoryMeasurement> FTLTrackingDiskData::clusterizedMeasurements(TrajectoryStateOnSurface &tsos, const MeasurementEstimator &mest, float rCut) const
 {
     std::vector<TrajectoryMeasurement> ret;
     GlobalPoint lp = tsos.globalPosition();
     const LocalError & loce = tsos.localError().positionError();
     float window = 4*std::sqrt(std::max(loce.xx(), loce.yy()));
-    std::vector<std::pair<HGCTrackingBasicCPE::PositionHint,const_iterator>> selHits;
+    std::vector<std::pair<FTLTrackingBasicCPE::PositionHint,const_iterator>> selHits;
     std::vector<TrackingRecHit::ConstRecHitPointer> hitptrs;
     std::vector<std::pair<bool,float>> estpairs;
     std::vector<int> selids;
@@ -117,7 +99,7 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterizedMeasurements(
         if (std::max(std::abs(lp.x()-pair.first.x), std::abs(lp.y()-pair.first.y)) < std::max(2.f,window + 3*pair.first.size)) {
             const value_type & obj = *pair.second;
             auto const & params = cpe_->localParameters(obj, tsos.surface());
-            auto hitptr = std::make_shared<HGCTrackingRecHitFromHit>(obj.id(), 
+            auto hitptr = std::make_shared<FTLTrackingRecHitFromHit>(obj.id(), 
                     ref_type(*alldata_, pair.second - (*alldata_)->begin()),  
                     params.first, params.second);
             auto est_pair = mest.estimate(tsos, *hitptr);
@@ -129,7 +111,7 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterizedMeasurements(
                 hitptrs.push_back(hitptr);
                 estpairs.push_back(est_pair);
             }
-            if (hgctracking::g_debuglevel > 2) {
+            if (ftltracking::g_debuglevel > 2) {
                 if (est_pair.second > 400) continue;
                 printf("\t\t%3d state at x = %+7.2f +- %4.2f   y = %+7.2f +- %4.2f   hit at x = %+7.2f  y = %+7.2f    energy %7.3f   dist = %5.1f chi2 = %8.1f   pass = %1d ", ++ihit,
                         lp.x(), sqrt(loce.xx()), lp.y(), sqrt(loce.yy()), pair.first.x, pair.first.y, energy, hypot(lp.x()-pair.first.x,lp.y()-pair.first.y), est_pair.second, est_pair.first);
@@ -152,27 +134,27 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterizedMeasurements(
     for (unsigned int i = 0, n = selHits.size(); i < n; ++i) {
         float myene = selHits[i].second->energy(); 
         above.clear(); below.clear();
-        if (hgctracking::g_debuglevel > 2) printf("\t\t%3d energy %7.3f neighbours: ",selids[i], myene); 
+        if (ftltracking::g_debuglevel > 2) printf("\t\t%3d energy %7.3f neighbours: ",selids[i], myene); 
         for (unsigned int j = 0; j < n; ++j) {
             if (i == j) continue;
             float dist = hypot(selHits[i].first.x-selHits[j].first.x, selHits[i].first.y-selHits[j].first.y);
             if (dist < rCut) {
                 float hisene = selHits[j].second->energy();
                 if (hisene > myene || (hisene == myene && i < j)) {
-                    if (hgctracking::g_debuglevel > 2) printf("%d (d=%.1f, e=%.3f, above)    ", selids[j], dist, hisene);
+                    if (ftltracking::g_debuglevel > 2) printf("%d (d=%.1f, e=%.3f, above)    ", selids[j], dist, hisene);
                     above.push_back(j); 
                 } else {
-                    if (hgctracking::g_debuglevel > 2) printf("%d (d=%.1f, e=%.3f, below)    ", selids[j], dist, hisene);
+                    if (ftltracking::g_debuglevel > 2) printf("%d (d=%.1f, e=%.3f, below)    ", selids[j], dist, hisene);
                     below.push_back(j); 
                 }
             }
         }
         if (above.empty()) {
             if (below.empty()) {
-                if (hgctracking::g_debuglevel > 2) printf("<- isolated rechit.");
+                if (ftltracking::g_debuglevel > 2) printf("<- isolated rechit.");
                 ret.emplace_back(tsos, hitptrs[i], estpairs[i].second);
             } else {
-                if (hgctracking::g_debuglevel > 2) printf("<- local maxima, will clusterize.\n");
+                if (ftltracking::g_debuglevel > 2) printf("<- local maxima, will clusterize.\n");
                 refvector_type hits;
                 float esum = myene, esumx = myene * selHits[i].first.x, esumy = myene * selHits[i].first.y;
                 hits.push_back( ref_type(*alldata_, selHits[i].second - (*alldata_)->begin()) );
@@ -183,10 +165,10 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterizedMeasurements(
                     esumy += hisene * selHits[j].first.y;
                     hits.push_back( ref_type(*alldata_, selHits[j].second - (*alldata_)->begin()) );
                 }
-                auto chitptr = std::make_shared<HGCTrackingClusteringRecHit>(selHits[i].second->id(), 
+                auto chitptr = std::make_shared<FTLTrackingClusteringRecHit>(selHits[i].second->id(), 
                         hits, esum,  LocalPoint(esumx/esum, esumy/esum, 0), hitptrs[i]->localPositionError());
                 auto cest_pair = mest.estimate(tsos, *chitptr);
-                if (hgctracking::g_debuglevel > 2) {
+                if (ftltracking::g_debuglevel > 2) {
                     printf("\t\t                                                    %3lu hits at x = %+7.2f  y = %+7.2f    energy %7.3f   dist = %5.1f chi2 = %8.1f   pass = %1d ", 
                             hits.size(), esumx/esum, esumy/esum, esum, hypot(lp.x()-esumx/esum,lp.y()-esumy/esum), cest_pair.second, cest_pair.first);
                 }
@@ -195,12 +177,12 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterizedMeasurements(
                 }
             }
         }
-        if (hgctracking::g_debuglevel > 2) printf("\n");
+        if (ftltracking::g_debuglevel > 2) printf("\n");
     }
     return ret;
 }
 
-std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterMeasurements(TrajectoryStateOnSurface &tsos, const MeasurementEstimator &mest) const 
+std::vector<TrajectoryMeasurement> FTLTrackingDiskData::clusterMeasurements(TrajectoryStateOnSurface &tsos, const MeasurementEstimator &mest) const 
 {
     std::vector<TrajectoryMeasurement> ret;
     GlobalPoint lp = tsos.globalPosition();
@@ -210,7 +192,7 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterMeasurements(Traj
         if (std::max(std::abs(lp.x()-pair.first.x), std::abs(lp.y()-pair.first.y)) < std::max(2.f,window + 3*pair.first.size)) {
             const reco::CaloCluster & obj = *pair.second;
             auto const & params = cpe_->localParameters(obj, tsos.surface());
-            auto hitptr = std::make_shared<HGCTrackingRecHitFromCluster>(obj.hitsAndFractions().front().first, 
+            auto hitptr = std::make_shared<FTLTrackingRecHitFromCluster>(obj.hitsAndFractions().front().first, 
                     reco::CaloClusterPtr(*clusterData_, pair.second - (*clusterData_)->begin()),  
                     params.first, params.second);
             auto est_pair = mest.estimate(tsos, *hitptr);
@@ -219,7 +201,7 @@ std::vector<TrajectoryMeasurement> HGCTrackingDiskData::clusterMeasurements(Traj
             if (est_pair.first) {
                 ret.emplace_back(tsos, hitptr, est_pair.second);
             }
-            if (hgctracking::g_debuglevel > 2) {
+            if (ftltracking::g_debuglevel > 2) {
                 if (est_pair.second > 400) continue;
                 //printf("\t\tstate at x = %+7.2f +- %4.2f   y = %+7.2f +- %4.2f   hit at x = %+7.2f  y = %+7.2f    energy %7.3f   dist = %5.1f chi2 = %8.1f   pass = %1d ",
                 //    lp.x(), sqrt(loce.xx()), lp.y(), sqrt(loce.yy()), pair.first.x, pair.first.y, energy, hypot(lp.x()-pair.first.x,lp.y()-pair.first.y), est_pair.second, est_pair.first);

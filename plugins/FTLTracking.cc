@@ -1,4 +1,4 @@
-/** \class HGCTracking
+/** \class FTLTracking
  *   produce Candidates for each RecHit **/
 
 #include <cassert>
@@ -12,25 +12,25 @@
 
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingRecHit.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingClusteringRecHit.h"
-#include "RecoParticleFlow/HGCTracking/interface/TrajectorySeedFromTrack.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTkTrajectoryBuilder.h"
-#include "RecoParticleFlow/HGCTracking/interface/hgcdebug.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingRecHit.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingClusteringRecHit.h"
+#include "RecoTracker/FastTimeMatching/interface/TrajectorySeedFromTrack.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTkTrajectoryBuilder.h"
+#include "RecoTracker/FastTimeMatching/interface/ftldebug.h"
 
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 
 
-class HGCTracking : public edm::stream::EDProducer<> {
+class FTLTracking : public edm::stream::EDProducer<> {
     public:
-        explicit HGCTracking(const edm::ParameterSet& ps);
-        ~HGCTracking() {}
+        explicit FTLTracking(const edm::ParameterSet& ps);
+        ~FTLTracking() {}
         virtual void produce(edm::Event& evt, const edm::EventSetup& es) override;
 
     private:
         /// workhorse 
-        HGCTkTrajectoryBuilder builder_;
+        FTLTkTrajectoryBuilder builder_;
 
         /// for seeding
         const edm::EDGetTokenT<reco::TrackCollection> srcTk_;
@@ -40,7 +40,7 @@ class HGCTracking : public edm::stream::EDProducer<> {
         const bool doBackwardsRefit_;
 
         /// for the debug output
-        const edm::EDGetTokenT<HGCRecHitCollection> srcEE_, srcFH_, srcBH_;
+        const edm::EDGetTokenT<FTLRecHitCollection> srcBarrel_, srcEndcap_;
 
         /// for debugging
         const bool hasMCTruth_;
@@ -49,34 +49,32 @@ class HGCTracking : public edm::stream::EDProducer<> {
 
         void declareOutput(const std::string &label); 
         void makeOutput(const std::vector<Trajectory> &trajs, edm::Event &out, const std::string &label); 
-        void writeAllHitsByLayer(const HGCRecHitCollection &hits, edm::Event &out, const std::string &label, int layers);
+        void writeAllHitsByLayer(const FTLRecHitCollection &hits, edm::Event &out, const std::string &label, int layers);
 };
 
 
-HGCTracking::HGCTracking(const edm::ParameterSet& ps) :
+FTLTracking::FTLTracking(const edm::ParameterSet& ps) :
     builder_(ps, consumesCollector()),
     srcTk_(consumes<reco::TrackCollection>(ps.getParameter<edm::InputTag>("srcTk"))),
     cutTk_(ps.getParameter<std::string>("cutTk")),
     doBackwardsRefit_(ps.getParameter<bool>("doBackwardsRefit")),
-    srcEE_(consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("srcEE"))),
-    srcFH_(consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("srcFH"))),
-    srcBH_(consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("srcBH"))),
+    srcBarrel_(consumes<FTLRecHitCollection>(ps.getParameter<edm::InputTag>("srcBarrel"))),
+    srcEndcap_(consumes<FTLRecHitCollection>(ps.getParameter<edm::InputTag>("srcEndcap"))),
     hasMCTruth_(ps.existsAs<edm::InputTag>("srcTruth")),
     srcTruth_(hasMCTruth_ ? consumes<std::vector<CaloParticle>>(ps.getParameter<edm::InputTag>("srcTruth")) : edm::EDGetTokenT<std::vector<CaloParticle>>())
 {
-    hgctracking::g_debuglevel = ps.getUntrackedParameter<uint32_t>("debugLevel",0);
+    ftltracking::g_debuglevel = ps.getUntrackedParameter<uint32_t>("debugLevel",0);
 
     declareOutput("");
     //if (doBackwardsRefit_) declareOutput("bw");
-    if (hgctracking::g_debuglevel > 0) {
-        produces<std::vector<reco::CaloCluster>>("EE");
-        produces<std::vector<reco::CaloCluster>>("FH");
-        produces<std::vector<reco::CaloCluster>>("BH");
+    if (ftltracking::g_debuglevel > 0) {
+        produces<std::vector<reco::CaloCluster> >("FastTimeBarrel");
+        produces<std::vector<reco::CaloCluster> >("FastTimeEndcap");
     }
 }
 
 void
-HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
+FTLTracking::produce(edm::Event& evt, const edm::EventSetup& es)
 {
     builder_.init(evt, es);
 
@@ -84,7 +82,7 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
     if (hasMCTruth_) {
         evt.getByToken(srcTruth_, truth);
         for (const CaloParticle &p : *truth) {
-            if (hgctracking::g_debuglevel > 0) {
+            if (ftltracking::g_debuglevel > 0) {
                 if (p.eventId().event() == 0 && p.eventId().bunchCrossing() == 0) {
                     printf("Considering truth particle of pdgId %+6d eid %d/%d pt %7.1f eta %+5.2f phi %+5.2f simclusters %4d \n", 
                             p.pdgId(), p.eventId().event(), p.eventId().bunchCrossing(), p.pt(), p.eta(), p.phi(), int(p.simClusters().size()));
@@ -102,14 +100,12 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
     }
     
 
-    if (hgctracking::g_debuglevel > 0) {
-        edm::Handle<HGCRecHitCollection> srcEE, srcFH, srcBH;
-        evt.getByToken(srcEE_, srcEE); 
-        evt.getByToken(srcFH_, srcFH); 
-        evt.getByToken(srcBH_, srcBH); 
-        writeAllHitsByLayer(*srcEE, evt, "EE", 28);
-        writeAllHitsByLayer(*srcFH, evt, "FH", 12);
-        writeAllHitsByLayer(*srcBH, evt, "BH", 12);
+    if (ftltracking::g_debuglevel > 0) {
+      edm::Handle<FTLRecHitCollection> srcBarrel, srcEndcap;
+        evt.getByToken(srcBarrel_, srcBarrel); 
+        evt.getByToken(srcEndcap_, srcEndcap); 
+        writeAllHitsByLayer(*srcBarrel, evt, "Barrel", 1);
+        writeAllHitsByLayer(*srcEndcap, evt, "Endcap", 1);
     }
 
     // Get tracks
@@ -121,24 +117,24 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
     unsigned int itrack = 0;
     for (const reco::Track &tk : *tracks) { ++itrack;
         if (!cutTk_(tk)) continue;
-        if (hgctracking::g_debuglevel > 1) {
+        if (ftltracking::g_debuglevel > 1) {
             printf("\n\nConsidering track pt %7.1f eta %+5.2f phi %+5.2f valid hits %d outer lost hits %d highPurity %1d\n", tk.pt(), tk.eta(), tk.phi(), tk.hitPattern().numberOfValidHits(), tk.hitPattern().numberOfLostHits(reco::HitPattern::MISSING_OUTER_HITS), tk.quality(reco::Track::highPurity));
         }
         builder_.trajectories( reco::TrackRef(tracks,itrack-1), finaltrajectories, alongMomentum );
     }
-    if (hgctracking::g_debuglevel > 0) {
+    if (ftltracking::g_debuglevel > 0) {
         printf("\n\nA total of %lu trajectories found in the event\n",finaltrajectories.size());
     }
 
     // Global cleaning (should not do much except in case of collimated tracks)
     unsigned int size_pre = finaltrajectories.size();
     builder_.cleanTrajectories(finaltrajectories);
-    if (hgctracking::g_debuglevel > 0 && size_pre != finaltrajectories.size()) {
+    if (ftltracking::g_debuglevel > 0 && size_pre != finaltrajectories.size()) {
         printf("A total of %lu trajectories after multiple cleaner\n", finaltrajectories.size());
     }
 
     // Debug Printout 
-    if (hgctracking::g_debuglevel > 0)  {
+    if (ftltracking::g_debuglevel > 0)  {
         std::set<const reco::Track *> done;
         for (const Trajectory &t : finaltrajectories) {
             printf("- Trajectory     "); builder_.printTraj(t);
@@ -161,7 +157,7 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
     // Make backwards fit
     if (doBackwardsRefit_) {
         // Run
-        if (hgctracking::g_debuglevel > 0) printf("Now going backwards\n");
+        if (ftltracking::g_debuglevel > 0) printf("Now going backwards\n");
         std::vector<Trajectory> bwfits;
         for (const Trajectory &t : finaltrajectories) {
             Trajectory && tbw = builder_.bwrefit(t);
@@ -169,7 +165,7 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
         }
         finaltrajectories.swap(bwfits);
 
-        if (hgctracking::g_debuglevel > 0)  {
+        if (ftltracking::g_debuglevel > 0)  {
             for (const Trajectory &t : finaltrajectories) {
                 printf("- TrajectoryBW "); builder_.printTraj(t);
             }
@@ -183,16 +179,16 @@ HGCTracking::produce(edm::Event& evt, const edm::EventSetup& es)
     revTruthMap_.clear();
 }
 
-void HGCTracking::declareOutput(const std::string &label) 
+void FTLTracking::declareOutput(const std::string &label) 
 {
     produces<TrackingRecHitCollection>(label);
-    produces<std::vector<reco::TrackExtra>>(label);
-    produces<std::vector<reco::Track>>(label);
-    produces<std::vector<reco::Track>>(label+"Seed");
-    produces<std::vector<reco::CaloCluster>>(label);
+    produces<std::vector<reco::TrackExtra> >(label);
+    produces<std::vector<reco::Track> >(label);
+    produces<std::vector<reco::Track> >(label+"Seed");
+    produces<std::vector<reco::CaloCluster> >(label);
 }
 
-void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &out, const std::string &label) 
+void FTLTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &out, const std::string &label) 
 {
     std::unique_ptr<TrackingRecHitCollection> outHits(new TrackingRecHitCollection());
     std::unique_ptr<std::vector<reco::TrackExtra>> outTkEx(new std::vector<reco::TrackExtra>());
@@ -222,19 +218,19 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
                 outpos = tm.updatedState().globalPosition();
                 outmom = tm.updatedState().globalMomentum();
             }
-            if (typeid(*tm.recHit()) == typeid(HGCTrackingRecHitFromCluster)) {
-                const reco::CaloCluster &cl = *(dynamic_cast<const HGCTrackingRecHitFromCluster&>(*tm.recHit())).objRef();
+            if (typeid(*tm.recHit()) == typeid(FTLTrackingRecHitFromCluster)) {
+                const reco::CaloCluster &cl = *(dynamic_cast<const FTLTrackingRecHitFromCluster&>(*tm.recHit())).objRef();
                 for (auto & p : cl.hitsAndFractions()) {
                     if (p.second > 0) hits.addHitAndFraction(p.first, p.second);
                 }
                 energy += cl.energy();
-            } else if (typeid(*tm.recHit()) == typeid(HGCTrackingClusteringRecHit)) {
-                for (auto & hr : (dynamic_cast<const HGCTrackingClusteringRecHit&>(*tm.recHit())).objRefs()) {
+            } else if (typeid(*tm.recHit()) == typeid(FTLTrackingClusteringRecHit)) {
+                for (auto & hr : (dynamic_cast<const FTLTrackingClusteringRecHit&>(*tm.recHit())).objRefs()) {
                     hits.addHitAndFraction(hr->id(), 1.0);
                 }
-                energy += ((dynamic_cast<const HGCTrackingClusteringRecHit&>(*tm.recHit())).energy());
+                energy += ((dynamic_cast<const FTLTrackingClusteringRecHit&>(*tm.recHit())).energy());
             } else {
-                energy += ((dynamic_cast<const HGCTrackingRecHitFromHit&>(*tm.recHit())).energy());
+                energy += ((dynamic_cast<const FTLTrackingRecHitFromHit&>(*tm.recHit())).energy());
                 hits.addHitAndFraction(tm.recHit()->geographicalId(), 1.0);
             }
         }
@@ -252,18 +248,16 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
         reco::Track trk(t.chiSquared(), t.foundHits()*2, hits.position(),
                         reco::Track::Vector(mom.x(), mom.y(), mom.z()), q, reco::Track::CovarianceMatrix());
         for (const auto & tm : t.measurements()) {
-            int subdet = 5, layer = 0;
+	  int subdet = 5, type = FastTimeDetId::FastTimeUnknown,layer = 0;
             if (tm.recHit()->geographicalId().det() == DetId::Forward) {
                 subdet = tm.recHit()->geographicalId().subdetId();
-                layer = HGCalDetId(tm.recHit()->geographicalId()).layer();
-            } else {
-                layer = HcalDetId(tm.recHit()->geographicalId()).depth();
+		type   = FastTimeDetId(tm.recHit()->geographicalId()).type();
+                layer = 0;
             }
             // convert subdet to something representable in a hitpattern
-            switch (subdet) {
-                case 3: subdet = PixelSubdetector::PixelEndcap; break;
-                case 4: subdet = StripSubdetector::TID; break;
-                case 5: subdet = StripSubdetector::TEC; break;
+            switch (type) {
+	    case FastTimeDetId::FastTimeBarrel: subdet = StripSubdetector::TOB; break;
+	    case FastTimeDetId::FastTimeEndcap: subdet = StripSubdetector::TEC; break;
             }
             trk.appendTrackerHitPattern(subdet, layer/2, layer%2, tm.recHit()->type());
         }
@@ -289,20 +283,15 @@ void HGCTracking::makeOutput(const std::vector<Trajectory> &trajs, edm::Event &o
     out.put(std::move(outTkSeed), label+"Seed");
 }
 
-void HGCTracking::writeAllHitsByLayer(const HGCRecHitCollection &hits, edm::Event &out, const std::string &label, int layers) 
+void FTLTracking::writeAllHitsByLayer(const FTLRecHitCollection &hits, edm::Event &out, const std::string &label, int layers) 
 {
-    std::unique_ptr<std::vector<reco::CaloCluster>> outCl(new std::vector<reco::CaloCluster>(2*layers));
+    std::unique_ptr<std::vector<reco::CaloCluster> > outCl(new std::vector<reco::CaloCluster>(2*layers));
 
-    for (const HGCRecHit &hit : hits) {
-        int zside, layer;
-        if (hit.id().det() == DetId::Forward) {
-            HGCalDetId parsed(hit.id());
-            zside = parsed.zside(); layer = parsed.layer();
-        } else {
-            HcalDetId parsed(hit.id());
-            zside = parsed.zside(); layer = parsed.depth();
-        }
-        (*outCl)[(zside>0)+2*(layer-1)].addHitAndFraction(hit.id(), 1.0);
+    for (const FTLRecHit &hit : hits) {
+      int zside;
+      FastTimeDetId parsed(hit.id());
+      zside = parsed.zside();
+      (*outCl)[(zside>0)].addHitAndFraction(hit.id(), 1.0);
     }
     for (int ilayer = 0; ilayer < layers; ++ilayer) {
        (*outCl)[2*ilayer  ].setEnergy(ilayer+1);
@@ -319,4 +308,4 @@ void HGCTracking::writeAllHitsByLayer(const HGCRecHitCollection &hits, edm::Even
 
 
 #include "FWCore/Framework/interface/MakerMacros.h"
-DEFINE_FWK_MODULE( HGCTracking );
+DEFINE_FWK_MODULE( FTLTracking );

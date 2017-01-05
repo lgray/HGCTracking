@@ -1,12 +1,11 @@
 import FWCore.ParameterSet.Config as cms
 
-hgcTrajectoryBuilderPSet = cms.PSet(
+ftlTrajectoryBuilderPSet = cms.PSet(
     ### RecHit collections
-    srcEE = cms.InputTag("HGCalRecHit:HGCEERecHits"),
-    srcFH = cms.InputTag("HGCalRecHit:HGCHEFRecHits"),
-    srcBH = cms.InputTag("HGCalRecHit:HGCHEBRecHits"),
+    srcBarrel = cms.InputTag("ftlRecHits:FTLBarrel"),
+    srcEndcap = cms.InputTag("ftlRecHits:FTLEndcap"),
     ### Clusters
-    srcClusters = cms.InputTag("hgcalLayerClusters"),
+    srcClusters = cms.InputTag(""),
 
     ### Seeding
     # initial uncertainties are rescaled by ( 1 + x * N(lost outer hits) )
@@ -18,7 +17,7 @@ hgcTrajectoryBuilderPSet = cms.PSet(
     propagatorOpposite = cms.string("PropagatorWithMaterialOpposite"), 
     #
     # estimator (to select compatible hits)
-    estimator = cms.string("hitCollectorHGC"),
+    estimator = cms.string("hitCollectorFTL"),
     #
     # updator (KF algebra; not really much to configure here)
     updator = cms.string("KFUpdator"),

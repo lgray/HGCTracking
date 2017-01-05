@@ -1,11 +1,11 @@
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingRecHit.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingClusteringRecHit.h"
-#include "RecoParticleFlow/HGCTracking/interface/TrajectorySeedFromTrack.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingRecHit.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingClusteringRecHit.h"
+#include "RecoTracker/FastTimeMatching/interface/TrajectorySeedFromTrack.h"
 
-namespace RecoParticleFlow_HGCTracking {
+namespace RecoTracker_FastTimeMatching {
     struct dictionary {
-        HGCTrackingRecHitFromHit dummy_hit;
-        HGCTrackingRecHitFromCluster dummy_hit_cluster;
-        HGCTrackingClusteringRecHit dummy_clustering_hit; 
+        FTLTrackingRecHitFromHit dummy_hit;
+        FTLTrackingRecHitFromCluster dummy_hit_cluster;
+        FTLTrackingClusteringRecHit dummy_clustering_hit; 
     };
 }

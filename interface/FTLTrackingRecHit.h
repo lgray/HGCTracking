@@ -1,5 +1,5 @@
-#ifndef RecoParticleFlow_HGCTracking_HGCTrackingRecHit_h
-#define RecoParticleFlow_HGCTracking_HGCTrackingRecHit_h
+#ifndef RecoTracker_FastTimeMatching_FTLTrackingRecHit_h
+#define RecoTracker_FastTimeMatching_FTLTrackingRecHit_h
 
 /// Basic template class for a RecHit wrapping a Ref to an object
 
@@ -7,18 +7,18 @@
 #include "DataFormats/TrackingRecHit/interface/RecHit2DLocalPos.h"
 
 template<typename ObjRef>
-class HGCTrackingRecHit : public RecHit2DLocalPos {
+class FTLTrackingRecHit : public RecHit2DLocalPos {
     public:
         typedef ObjRef ref_type;
         typedef typename ObjRef::value_type obj_type;
 
-        HGCTrackingRecHit() {}
-        HGCTrackingRecHit(DetId id, const ObjRef &objref, const LocalPoint &pos, const LocalError &err):
+        FTLTrackingRecHit() {}
+        FTLTrackingRecHit(DetId id, const ObjRef &objref, const LocalPoint &pos, const LocalError &err):
             RecHit2DLocalPos(id),
             objref_(objref),
             pos_(pos), err_(err) {}
 
-        virtual HGCTrackingRecHit<ObjRef> * clone() const override { return new HGCTrackingRecHit<ObjRef>(*this); }
+        virtual FTLTrackingRecHit<ObjRef> * clone() const override { return new FTLTrackingRecHit<ObjRef>(*this); }
 
         virtual LocalPoint localPosition() const override { return pos_; }
         virtual LocalError localPositionError() const override { return err_; }
@@ -35,16 +35,16 @@ class HGCTrackingRecHit : public RecHit2DLocalPos {
 };
 
 
-// Instantiations and specializations for HGCRecHitRef and reco::CaloClusterPtr
-#include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
+// Instantiations and specializations for FTLRecHitRef and reco::CaloClusterPtr
+#include "DataFormats/FTLRecHit/interface/FTLRecHitCollections.h"
 #include "DataFormats/CaloRecHit/interface/CaloClusterFwd.h"
-typedef HGCTrackingRecHit<HGCRecHitRef> HGCTrackingRecHitFromHit;
-typedef HGCTrackingRecHit<reco::CaloClusterPtr> HGCTrackingRecHitFromCluster;
+typedef FTLTrackingRecHit<FTLRecHitRef> FTLTrackingRecHitFromHit;
+typedef FTLTrackingRecHit<reco::CaloClusterPtr> FTLTrackingRecHitFromCluster;
 
 template<>
-bool HGCTrackingRecHit<HGCRecHitRef>::sharesInput( const TrackingRecHit* other, SharedInputType what) const ;
+bool FTLTrackingRecHit<FTLRecHitRef>::sharesInput( const TrackingRecHit* other, SharedInputType what) const ;
 
 template<>
-bool HGCTrackingRecHit<reco::CaloClusterPtr>::sharesInput( const TrackingRecHit* other, SharedInputType what) const ;
+bool FTLTrackingRecHit<reco::CaloClusterPtr>::sharesInput( const TrackingRecHit* other, SharedInputType what) const ;
 
 #endif

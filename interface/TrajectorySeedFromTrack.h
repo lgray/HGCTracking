@@ -1,8 +1,8 @@
-#ifndef RecoParticleFlow_HGCTracking_TrajectorySeedFromTrack_h
-#define RecoParticleFlow_HGCTracking_TrajectorySeedFromTrack_h
+#ifndef RecoTracker_FastTimeMatching_TrajectorySeedFromTrack_h
+#define RecoTracker_FastTimeMatching_TrajectorySeedFromTrack_h
 
 /// Basic class  for a TrajectorySeed made from a reco::Track.
-//  FIXME: not HGC specific, so should go in DataFormats/TrajectorySeed or similar
+//  FIXME: not FTL specific, so should go in DataFormats/TrajectorySeed or similar
 
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/TrajectorySeed/interface/TrajectorySeed.h"

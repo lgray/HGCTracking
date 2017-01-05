@@ -1,5 +1,5 @@
-#ifndef RecoparticleFlow_HGCTracking_HGCTkTrajectoryBuilder_h
-#define RecoparticleFlow_HGCTracking_HGCTkTrajectoryBuilder_h
+#ifndef RecoTracker_FastTimeMatching_FTLTkTrajectoryBuilder_h
+#define RecoTracker_FastTimeMatching_FTLTkTrajectoryBuilder_h
 
 /// Class that does the trajectory building starting from a seed
 
@@ -18,23 +18,23 @@
 #include "TrackingTools/TrajectoryCleaning/interface/TrajectoryCleaner.h"
 #include "TrackingTools/TrajectoryFiltering/interface/TrajectoryFilter.h"
 
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingRecHit.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingClusteringRecHit.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTracker.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingBasicCPE.h"
-#include "RecoParticleFlow/HGCTracking/interface/TrajectoryCleanerBySharedEndpoints.h"
-#include "RecoParticleFlow/HGCTracking/interface/HGCTrackingData.h"
-#include "RecoParticleFlow/HGCTracking/interface/hgcdebug.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingRecHit.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingClusteringRecHit.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTracker.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingBasicCPE.h"
+#include "RecoTracker/FastTimeMatching/interface/TrajectoryCleanerBySharedEndpoints.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTrackingData.h"
+#include "RecoTracker/FastTimeMatching/interface/ftldebug.h"
 
-class HGCTkTrajectoryBuilder {
+class FTLTkTrajectoryBuilder {
     public:
-        HGCTkTrajectoryBuilder(const edm::ParameterSet& ps, edm::ConsumesCollector && c );
+        FTLTkTrajectoryBuilder(const edm::ParameterSet& ps, edm::ConsumesCollector && c );
 
         // no copy, no move, no assign (they would be all bad ideas)
-        HGCTkTrajectoryBuilder(const HGCTkTrajectoryBuilder &other) = delete;
-        HGCTkTrajectoryBuilder(HGCTkTrajectoryBuilder && other) = delete;
-        HGCTkTrajectoryBuilder& operator=(const HGCTkTrajectoryBuilder &other) = delete;
-        HGCTkTrajectoryBuilder& operator=(HGCTkTrajectoryBuilder && other) = delete;
+        FTLTkTrajectoryBuilder(const FTLTkTrajectoryBuilder &other) = delete;
+        FTLTkTrajectoryBuilder(FTLTkTrajectoryBuilder && other) = delete;
+        FTLTkTrajectoryBuilder& operator=(const FTLTkTrajectoryBuilder &other) = delete;
+        FTLTkTrajectoryBuilder& operator=(FTLTkTrajectoryBuilder && other) = delete;
 
         /// to be called at the beginning of the event
         void init(const edm::Event &event, const edm::EventSetup &iSetup) ;
@@ -64,7 +64,7 @@ class HGCTkTrajectoryBuilder {
         enum PatternRecoAlgo { SingleHitAlgo, ClusterizingAlgo, MixedAlgo };
 
         // --- Inputs ---
-        const edm::EDGetTokenT<HGCRecHitCollection> srcEE_, srcFH_, srcBH_;
+        const edm::EDGetTokenT<FTLRecHitCollection> srcBarrel_, srcEndcap_;
         const edm::EDGetTokenT<reco::CaloClusterCollection> srcClusters_;
 
         // --- Configuration ---
@@ -86,8 +86,8 @@ class HGCTkTrajectoryBuilder {
 
         // --- Event Setup stuff (or similar) ---
         uint32_t geomCacheId_;
-        std::unique_ptr<HGCTracker> hgcTracker_;
-        edm::ESHandle<CaloGeometry> caloGeom_;
+        std::unique_ptr<FTLTracker> hgcTracker_;
+        edm::ESHandle<FastTimeGeometry> caloGeom_;
         edm::ESHandle<GlobalTrackingGeometry> trkGeom_;
         edm::ESHandle<Propagator> prop_, propOppo_;
         edm::ESHandle<MagneticField> bfield_;
@@ -95,20 +95,20 @@ class HGCTkTrajectoryBuilder {
         edm::ESHandle<TrajectoryStateUpdator> updator_;
         edm::ESHandle<TrajectoryCleaner> trajectoryCleaner_;
         std::unique_ptr<TrajectoryFilter> trajFilter_;
-        std::unique_ptr<HGCTrackingBasicCPE> cpe_;
+        std::unique_ptr<FTLTrackingBasicCPE> cpe_;
 
         // --- Event Data ---
         // note that handles have to be kept, since they're needed to build refs
-        edm::Handle<HGCRecHitCollection> srcEE, srcFH, srcBH;
+        edm::Handle<FTLRecHitCollection> srcBarrel, srcEndcap;
         edm::Handle<reco::CaloClusterCollection> srcClusters;
         // data re-arranged for tracking
-        std::unique_ptr<HGCTrackingData> data_;
+        std::unique_ptr<FTLTrackingData> data_;
         // for debug
         const CaloTruthRevMap *truthMap_;
 
         /// --- Pattern reco ---
         template<class Start>
-        std::vector<TempTrajectory> advanceOneLayer(const Start &start, const TempTrajectory &traj, const HGCDiskGeomDet *disk, bool bestHitOnly) const ;
+        std::vector<TempTrajectory> advanceOneLayer(const Start &start, const TempTrajectory &traj, const FTLDiskGeomDet *disk, bool bestHitOnly) const ;
 
         /// --- Utilities ---
         void trim(std::vector<TempTrajectory> &tempTrajectories) const {

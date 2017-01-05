@@ -1,24 +1,24 @@
-#ifndef RecoParticleFlow_HGCTracking_HGCTrackingClusteringRecHit_h
-#define RecoParticleFlow_HGCTracking_HGCTrackingClusteringRecHit_h
+#ifndef RecoTracker_FastTimeMatching_FTLTrackingClusteringRecHit_h
+#define RecoTracker_FastTimeMatching_FTLTrackingClusteringRecHit_h
 
-/// Class for a TrackingRecHit made from an on-the-fly clustering of HGCRecHits
+/// Class for a TrackingRecHit made from an on-the-fly clustering of FTLRecHits
 
 #include "DataFormats/TrackingRecHit/interface/RecHit2DLocalPos.h"
-#include "DataFormats/HGCRecHit/interface/HGCRecHit.h"
-#include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
+#include "DataFormats/FTLRecHit/interface/FTLRecHit.h"
+#include "DataFormats/FTLRecHit/interface/FTLRecHitCollections.h"
 
-class HGCTrackingClusteringRecHit : public RecHit2DLocalPos {
+class FTLTrackingClusteringRecHit : public RecHit2DLocalPos {
     public:
-        typedef HGCRecHitRef ObjRef;
+        typedef FTLRecHitRef ObjRef;
         typedef edm::RefVector<ObjRef::product_type, ObjRef::value_type, ObjRef::finder_type> ObjRefVector;
 
-        HGCTrackingClusteringRecHit() {}
-        HGCTrackingClusteringRecHit(DetId id, const ObjRefVector &objrefs, float etot, const LocalPoint &pos, const LocalError &err):
+        FTLTrackingClusteringRecHit() {}
+        FTLTrackingClusteringRecHit(DetId id, const ObjRefVector &objrefs, float etot, const LocalPoint &pos, const LocalError &err):
             RecHit2DLocalPos(id),
             objrefs_(objrefs), etot_(etot),
             pos_(pos), err_(err) {}
 
-        virtual HGCTrackingClusteringRecHit * clone() const override { return new HGCTrackingClusteringRecHit(*this); }
+        virtual FTLTrackingClusteringRecHit * clone() const override { return new FTLTrackingClusteringRecHit(*this); }
 
         virtual LocalPoint localPosition() const override { return pos_; }
         virtual LocalError localPositionError() const override { return err_; }

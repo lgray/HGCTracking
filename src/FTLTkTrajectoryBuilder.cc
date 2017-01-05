@@ -1,5 +1,5 @@
-#include "RecoParticleFlow/HGCTracking/interface/HGCTkTrajectoryBuilder.h"
-#include "RecoParticleFlow/HGCTracking/interface/TrajectorySeedFromTrack.h"
+#include "RecoTracker/FastTimeMatching/interface/FTLTkTrajectoryBuilder.h"
+#include "RecoTracker/FastTimeMatching/interface/TrajectorySeedFromTrack.h"
 
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/TrackReco/interface/Track.h"
@@ -26,10 +26,9 @@
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 
 
-HGCTkTrajectoryBuilder::HGCTkTrajectoryBuilder(const edm::ParameterSet& ps, edm::ConsumesCollector && c ) :
-    srcEE_(c.consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("srcEE"))),
-    srcFH_(c.consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("srcFH"))),
-    srcBH_(c.consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("srcBH"))),
+FTLTkTrajectoryBuilder::FTLTkTrajectoryBuilder(const edm::ParameterSet& ps, edm::ConsumesCollector && c ) :
+    srcBarrel_(c.consumes<FTLRecHitCollection>(ps.getParameter<edm::InputTag>("srcBarrel"))),
+    srcEndcap_(c.consumes<FTLRecHitCollection>(ps.getParameter<edm::InputTag>("srcEndcap"))),
     srcClusters_(c.consumes<reco::CaloClusterCollection>(ps.getParameter<edm::InputTag>("srcClusters"))),
     propName_(ps.getParameter<std::string>("propagator")),
     propNameOppo_(ps.getParameter<std::string>("propagatorOpposite")),
@@ -67,14 +66,14 @@ HGCTkTrajectoryBuilder::HGCTkTrajectoryBuilder(const edm::ParameterSet& ps, edm:
 
 
 void
-HGCTkTrajectoryBuilder::init(const edm::Event& evt, const edm::EventSetup& es)
+FTLTkTrajectoryBuilder::init(const edm::Event& evt, const edm::EventSetup& es)
 {
     //Get Calo Geometry
     if (es.get<CaloGeometryRecord>().cacheIdentifier() != geomCacheId_) {
         es.get<CaloGeometryRecord>().get(caloGeom_);
         geomCacheId_ = es.get<CaloGeometryRecord>().cacheIdentifier();
-        hgcTracker_.reset(new HGCTracker(caloGeom_.product()));
-        cpe_.reset(new HGCTrackingBasicCPE(&*caloGeom_)); // FIXME better
+        hgcTracker_.reset(new FTLTracker(caloGeom_.product()));
+        cpe_.reset(new FTLTrackingBasicCPE(&*caloGeom_)); // FIXME better
     } 
 
     es.get<GlobalTrackingGeometryRecord>().get(trkGeom_);
@@ -88,11 +87,10 @@ HGCTkTrajectoryBuilder::init(const edm::Event& evt, const edm::EventSetup& es)
    
     trajFilter_->setEvent(evt, es); 
 
-    data_.reset(new HGCTrackingData(*hgcTracker_, &*cpe_));
+    data_.reset(new FTLTrackingData(*hgcTracker_, &*cpe_));
 
-    evt.getByToken(srcEE_, srcEE); data_->addData(srcEE, 3);
-    evt.getByToken(srcFH_, srcFH); data_->addData(srcFH, 4);
-    evt.getByToken(srcBH_, srcBH); data_->addData(srcBH, 5);
+    evt.getByToken(srcBarrel_, srcBarrel); data_->addData(srcBarrel, FastTimeDetId::FastTimeBarrel);
+    evt.getByToken(srcEndcap_, srcEndcap); data_->addData(srcEndcap, FastTimeDetId::FastTimeEndcap);
 
     evt.getByToken(srcClusters_, srcClusters); 
     data_->addClusters(srcClusters);
@@ -100,14 +98,14 @@ HGCTkTrajectoryBuilder::init(const edm::Event& evt, const edm::EventSetup& es)
 
 
 void 
-HGCTkTrajectoryBuilder::done()
+FTLTkTrajectoryBuilder::done()
 {
     data_.reset();
 }
 
 
 unsigned int 
-HGCTkTrajectoryBuilder::trajectories(const reco::TrackRef &tk, std::vector<Trajectory> &out, PropagationDirection direction) const 
+FTLTkTrajectoryBuilder::trajectories(const reco::TrackRef &tk, std::vector<Trajectory> &out, PropagationDirection direction) const 
 {
     assert(direction == alongMomentum); // the rest is not implemented yet
 
@@ -132,7 +130,7 @@ HGCTkTrajectoryBuilder::trajectories(const reco::TrackRef &tk, std::vector<Traje
 
 
 unsigned int 
-HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector<Trajectory> &out, PropagationDirection direction) const 
+FTLTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector<Trajectory> &out, PropagationDirection direction) const 
 {
     auto trajCandLess = [&](TempTrajectory const & a, TempTrajectory const & b) {
         return  (a.chiSquared() + a.lostHits()*theLostHitPenalty - a.foundHits()*theFoundHitBonus)  <
@@ -140,20 +138,20 @@ HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector
     };
 
     int zside = fts.momentum().eta() > 0 ? +1 : -1;
-    const HGCDiskGeomDet *disk = hgcTracker_->firstDisk(zside,direction);
+    const FTLDiskGeomDet *disk = hgcTracker_->firstDisk(zside,direction);
     std::vector<TempTrajectory> myfinaltrajectories;
     std::vector<TempTrajectory> trajectories = advanceOneLayer(fts, TempTrajectory(direction, 0), disk, false);
     unsigned int depth = 2;
     for (disk = hgcTracker_->nextDisk(disk,direction); disk != nullptr; disk = hgcTracker_->nextDisk(disk,direction), ++depth) {
         if (trajectories.empty()) continue;
-        if (hgctracking::g_debuglevel > 1) {
+        if (ftltracking::g_debuglevel > 1) {
             printf("   New destination: disk subdet %d, zside %+1d, layer %2d, z = %+8.2f\n", disk->subdet(), disk->zside(), disk->layer(), disk->toGlobal(LocalPoint(0,0,0)).z());
         }
         //printf("   Starting candidates: %lu\n", trajectories.size());
         std::vector<TempTrajectory> newCands;
         int icand = 0;
         for (TempTrajectory & cand : trajectories) {
-            if (hgctracking::g_debuglevel > 1) {
+            if (ftltracking::g_debuglevel > 1) {
                 printf("    Processing candidate %2d/%lu with ", ++icand, trajectories.size()); printTraj(cand); //found hits %3d, lost hits %3d, chi2 %8.1f\n", cand.foundHits(), cand.lostHits(), cand.chiSquared());
             }
             TrajectoryStateOnSurface start = cand.lastMeasurement().updatedState();
@@ -161,9 +159,9 @@ HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector
             bool bestHitOnly = bestHitOnly_ && (depth > theLayersBeforeCleaning);
             std::vector<TempTrajectory> hisTrajs = advanceOneLayer(start, cand, disk, bestHitOnly);
             if (hisTrajs.empty()) {
-                if (hgctracking::g_debuglevel > 1) printf("     --> stops here\n");
+                if (ftltracking::g_debuglevel > 1) printf("     --> stops here\n");
                 if (trajFilter_->qualityFilter(cand)) {
-                    if (hgctracking::g_debuglevel > 1) printf("          --> passes filter, being retained for the moment \n");
+                    if (ftltracking::g_debuglevel > 1) printf("          --> passes filter, being retained for the moment \n");
                     myfinaltrajectories.push_back(cand);
                 }
             } else {
@@ -187,7 +185,7 @@ HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector
             unsigned int oldsize = newCands.size();
             TrajectoryCleanerBySharedEndpoints endpointCleaner(theFoundHitBonus, theLostHitPenalty);
             endpointCleaner.clean(newCands); trim(newCands);
-            if (hgctracking::g_debuglevel > 1) if (oldsize != newCands.size()) printf("    Reduced from %u to %lu trajectories after TrajectoryCleanerBySharedEndpoints\n", oldsize, newCands.size());
+            if (ftltracking::g_debuglevel > 1) if (oldsize != newCands.size()) printf("    Reduced from %u to %lu trajectories after TrajectoryCleanerBySharedEndpoints\n", oldsize, newCands.size());
         }
         if (newCands.size() > theMaxCand && depth > theLayersBeforeCleaning) {
             std::sort(newCands.begin(), newCands.end(), trajCandLess);
@@ -197,32 +195,32 @@ HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector
         trajectories.swap(newCands);
     }
     if (!trajectories.empty()) {
-        if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories reached the end of the tracker from this track\n", trajectories.size());
+        if (ftltracking::g_debuglevel > 1) printf("A total of %lu trajectories reached the end of the tracker from this track\n", trajectories.size());
         for (TempTrajectory & t : trajectories) {
             if (t.foundHits() > 0 && trajFilter_->qualityFilter(t)) {
                 myfinaltrajectories.push_back(std::move(t));
             }
         }
     }
-    if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories found from this track\n", myfinaltrajectories.size());
+    if (ftltracking::g_debuglevel > 1) printf("A total of %lu trajectories found from this track\n", myfinaltrajectories.size());
     if (fastCleaner_) {
         FastTrajectoryCleaner cleaner(theFoundHitBonus/2,theLostHitPenalty); // the factor 1/2 is because the FastTrajectoryCleaner uses the ndof instead of the number of found hits
         cleaner.clean(myfinaltrajectories); trim(myfinaltrajectories);
-        if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories after FastTrajectoryCleaner\n", myfinaltrajectories.size());
+        if (ftltracking::g_debuglevel > 1) printf("A total of %lu trajectories after FastTrajectoryCleaner\n", myfinaltrajectories.size());
     }
 
     std::vector<Trajectory> toPromote;
     for (TempTrajectory &t : myfinaltrajectories) {
         while (!t.lastMeasurement().recHit()->isValid()) t.pop();
-        if (hgctracking::g_debuglevel > 1) { printf("- TempTrajectory "); printTraj(t); }
+        if (ftltracking::g_debuglevel > 1) { printf("- TempTrajectory "); printTraj(t); }
         toPromote.push_back(t.toTrajectory());
     }
     if (toPromote.size() > 1 && !trajectoryCleanerName_.empty()) {
         trajectoryCleaner_->clean(toPromote); trim(toPromote);
-        if (hgctracking::g_debuglevel > 1) printf("A total of %lu trajectories after multiple cleaner\n", toPromote.size());
+        if (ftltracking::g_debuglevel > 1) printf("A total of %lu trajectories after multiple cleaner\n", toPromote.size());
     }
     for (Trajectory &t : toPromote) { 
-        if (hgctracking::g_debuglevel > 1) { printf("- Trajectory "); printTraj(t); }
+        if (ftltracking::g_debuglevel > 1) { printf("- Trajectory "); printTraj(t); }
         out.push_back(std::move(t));
     }
 
@@ -231,7 +229,7 @@ HGCTkTrajectoryBuilder::trajectories(const FreeTrajectoryState &fts, std::vector
 
 template<class Start>
 std::vector<TempTrajectory> 
-HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory &traj, const HGCDiskGeomDet *disk, bool bestHitOnly) const  
+FTLTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory &traj, const FTLDiskGeomDet *disk, bool bestHitOnly) const  
 {
     std::vector<TempTrajectory> ret;
 
@@ -239,7 +237,7 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
     // propagate to the plane of the layer
     TrajectoryStateOnSurface tsos = prop.propagate(start, disk->surface());
     if (!tsos.isValid()) { 
-        if (hgctracking::g_debuglevel > 0)  {
+        if (ftltracking::g_debuglevel > 0)  {
             printf("        Destination disk subdet %d, zside %+1d, layer %2d, z = %+8.2f\n", disk->subdet(), disk->zside(), disk->layer(), disk->toGlobal(LocalPoint(0,0,0)).z());
             printf("         --> propagation failed.\n"); 
         }
@@ -248,7 +246,7 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
 
     // check if inside the bounds of the layer
     if (!disk->surface().bounds().inside(tsos.localPosition())) {
-        if (hgctracking::g_debuglevel > 0)  {
+        if (ftltracking::g_debuglevel > 0)  {
             GlobalPoint gp = tsos.globalPosition();
             printf("        Prop point: global eta %+5.2f phi %+5.2f  x = %+8.2f y = %+8.2f z = %+8.2f rho = %8.2f\n", gp.eta(), float(gp.phi()), gp.x(), gp.y(), gp.z(), gp.perp());
             //LocalPoint lp = tsos.localPosition();
@@ -278,19 +276,19 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
 
     // sort hits from better to worse
     std::sort(meas.begin(), meas.end(), TrajMeasLessEstim());
-    if (hgctracking::g_debuglevel > 1)  printf("        Compatible hits: %lu\n", meas.size());
+    if (ftltracking::g_debuglevel > 1)  printf("        Compatible hits: %lu\n", meas.size());
 
     // for each, make a new trajectory candidate
     for (const TrajectoryMeasurement &tm : meas) {
         if (deltaChiSquareForHits_ > 0) {
             if (meas.size() > 1  && !ret.empty() && tm.estimate() > meas.front().estimate() + deltaChiSquareForHits_) {
-                if (hgctracking::g_debuglevel > 3) printf("        stop after the first %lu hits, since this chi2 of %.1f is too bad wrt the best one of %.1f\n", ret.size(), tm.estimate(), meas.front().estimate());
+                if (ftltracking::g_debuglevel > 3) printf("        stop after the first %lu hits, since this chi2 of %.1f is too bad wrt the best one of %.1f\n", ret.size(), tm.estimate(), meas.front().estimate());
                 break;
             }
         }
         TrajectoryStateOnSurface updated = updator_->update(tm.forwardPredictedState(), *tm.recHit());
         if (!updated.isValid()) { 
-            if (hgctracking::g_debuglevel > 0)  {
+            if (ftltracking::g_debuglevel > 0)  {
                 std::cout << "          Hit with chi2 = " << tm.estimate() << std::endl;
                 std::cout << "              track state     " << tm.forwardPredictedState().localPosition() << std::endl;
                 std::cout << "              rechit position " << tm.recHit()->localPosition() << std::endl;
@@ -314,7 +312,7 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
     // Possibly add an invalid hit, for the hypothesis that the track didn't leave a valid hit
     if (minChi2ForInvalidHit_ > 0) {
         if (meas.size() > 0  && !ret.empty() && meas.front().estimate() < minChi2ForInvalidHit_) {
-            if (hgctracking::g_debuglevel > 3) printf("        will not add the invalid hit after %lu valid hits, as the best valid hit has chi2 of %.1f\n", ret.size(), meas.front().estimate());
+            if (ftltracking::g_debuglevel > 3) printf("        will not add the invalid hit after %lu valid hits, as the best valid hit has chi2 of %.1f\n", ret.size(), meas.front().estimate());
             return ret;
         }
     }
@@ -325,7 +323,7 @@ HGCTkTrajectoryBuilder::advanceOneLayer(const Start &start, const TempTrajectory
 }
 
 void
-HGCTkTrajectoryBuilder::cleanTrajectories(std::vector<Trajectory> &trajectories) const {
+FTLTkTrajectoryBuilder::cleanTrajectories(std::vector<Trajectory> &trajectories) const {
     if (!trajectoryCleanerName_.empty()) {
         trajectoryCleaner_->clean(trajectories);
         trim(trajectories);
@@ -333,7 +331,7 @@ HGCTkTrajectoryBuilder::cleanTrajectories(std::vector<Trajectory> &trajectories)
 }
 
 Trajectory
-HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const {
+FTLTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const {
     Trajectory ret(oppositeToMomentum);
 
     const Trajectory::DataContainer & tms = traj.measurements();
@@ -346,9 +344,9 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
     const Propagator &propOppo = (traj.direction() == alongMomentum ? *propOppo_ : *prop_);
 
     for (int i = tms.size()-1; i >= 0; --i) {
-        const HGCDiskGeomDet * det = hgcTracker_->idToDet(tms[i].recHit()->geographicalId());
+        const FTLDiskGeomDet * det = hgcTracker_->idToDet(tms[i].recHit()->geographicalId());
         if (det == 0) {
-            if (hgctracking::g_debuglevel > 0)  {
+            if (ftltracking::g_debuglevel > 0)  {
                 printf(" ---> failure in finding det for step %d on det %d, subdet %d\n",i,tms[i].recHit()->geographicalId().det(),tms[i].recHit()->geographicalId().subdetId());
             }
             ret.invalidate();
@@ -356,7 +354,7 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
         }
         TrajectoryStateOnSurface prop = propOppo.propagate(tsos, det->surface());
         if (!prop.isValid()) {
-            if (hgctracking::g_debuglevel > 0)  {
+            if (ftltracking::g_debuglevel > 0)  {
                 printf(" ---> failure in propagation for step %d\n",i);
             }
             ret.invalidate();
@@ -364,7 +362,7 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
         }
         if (tms[i].recHit()->isValid()) {
            auto pair = estimator_->estimate( prop, *tms[i].recHit() );
-           if (hgctracking::g_debuglevel > 1)  {
+           if (ftltracking::g_debuglevel > 1)  {
                if (i % 7 == 0) {
                printf("   for step %2d pt %6.1f +- %5.1f   q/p %+7.4f +- %6.4f   x = %+7.2f +- %4.2f  y = %+7.2f +- %4.2f   dxdz = %+5.3f +- %4.3f dydz = %+5.3f +- %4.3f    adding hit %+7.2f %+7.2f  results in chi2 = %6.1f (old: %6.1f)\n", i, 
                     prop.globalMomentum().perp(), prop.globalMomentum().perp() * prop.globalMomentum().mag() * sqrt(prop.localError().matrix()(0,0)),
@@ -377,7 +375,7 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
            }
            TrajectoryStateOnSurface updated = updator_->update( prop, *tms[i].recHit() );
            if (!updated.isValid()) {
-                if (hgctracking::g_debuglevel > 0) printf(" ---> fail in backwards update for step %d\n",i);
+                if (ftltracking::g_debuglevel > 0) printf(" ---> fail in backwards update for step %d\n",i);
                 ret.invalidate(); 
                 return ret;
            } 
@@ -400,7 +398,7 @@ HGCTkTrajectoryBuilder::bwrefit(const Trajectory &traj, float scaleErrors) const
 
 template<typename Traj> 
 void 
-HGCTkTrajectoryBuilder::printTraj_(const Traj &t) const 
+FTLTkTrajectoryBuilder::printTraj_(const Traj &t) const 
 {
     TrajectoryStateOnSurface finalTSOS = t.lastMeasurement().updatedState();
     if (!finalTSOS.isValid()) finalTSOS = t.lastMeasurement().forwardPredictedState();
@@ -424,12 +422,12 @@ HGCTkTrajectoryBuilder::printTraj_(const Traj &t) const
         for (int i = meas.size()-1; i >= 0; --i) {
             if (meas[i].recHit()->isValid()) {
                 float energy = -1;
-                if (typeid(*meas[i].recHit()) == typeid(HGCTrackingRecHitFromHit)) {
-                    energy = ((dynamic_cast<const HGCTrackingRecHitFromHit&>(*meas[i].recHit())).energy());
-                } else if (typeid(*meas[i].recHit()) == typeid(HGCTrackingRecHitFromCluster)) {
-                    energy = ((dynamic_cast<const HGCTrackingRecHitFromCluster&>(*meas[i].recHit())).energy());
-                } else if (typeid(*meas[i].recHit()) == typeid(HGCTrackingClusteringRecHit)) {
-                    energy = ((dynamic_cast<const HGCTrackingClusteringRecHit&>(*meas[i].recHit())).energy());
+                if (typeid(*meas[i].recHit()) == typeid(FTLTrackingRecHitFromHit)) {
+                    energy = ((dynamic_cast<const FTLTrackingRecHitFromHit&>(*meas[i].recHit())).energy());
+                } else if (typeid(*meas[i].recHit()) == typeid(FTLTrackingRecHitFromCluster)) {
+                    energy = ((dynamic_cast<const FTLTrackingRecHitFromCluster&>(*meas[i].recHit())).energy());
+                } else if (typeid(*meas[i].recHit()) == typeid(FTLTrackingClusteringRecHit)) {
+                    energy = ((dynamic_cast<const FTLTrackingClusteringRecHit&>(*meas[i].recHit())).energy());
                 } else {
                     throw cms::Exception("Invalid valid hit", typeid(*meas[i].recHit()).name());
                 }
@@ -456,7 +454,7 @@ HGCTkTrajectoryBuilder::printTraj_(const Traj &t) const
 
 template<typename Traj>
 std::vector<std::pair<const CaloParticle *, float>> 
-HGCTkTrajectoryBuilder::truthMatch_(const Traj &t) const 
+FTLTkTrajectoryBuilder::truthMatch_(const Traj &t) const 
 {
     std::vector<std::pair<const CaloParticle *, float>> ret;
     if (truthMap_) { 
@@ -466,8 +464,8 @@ HGCTkTrajectoryBuilder::truthMatch_(const Traj &t) const
         for (const auto & tm : t.measurements()) {
             if (!tm.recHit()->isValid()) continue;
             ids.clear();
-            if (typeid(*tm.recHit()) == typeid(HGCTrackingRecHitFromCluster)) {
-                for (auto & p : (dynamic_cast<const HGCTrackingRecHitFromCluster&>(*tm.recHit())).objRef()->hitsAndFractions()) {
+            if (typeid(*tm.recHit()) == typeid(FTLTrackingRecHitFromCluster)) {
+                for (auto & p : (dynamic_cast<const FTLTrackingRecHitFromCluster&>(*tm.recHit())).objRef()->hitsAndFractions()) {
                     if (p.second > 0) ids.push_back(p.first);
                 }
             } else {
